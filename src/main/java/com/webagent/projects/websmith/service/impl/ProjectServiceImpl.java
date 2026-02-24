@@ -1,5 +1,6 @@
 package com.webagent.projects.websmith.service.impl;
 
+import com.webagent.projects.websmith.error.ResourceNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -86,6 +87,7 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
     public Project getAccessibleProjectById(Long projectId, Long userId){
-        return projectRepository.findAccessibleProjectById(projectId, userId).orElseThrow();
+        return projectRepository.findAccessibleProjectById(projectId, userId)
+                .orElseThrow(()-> new ResourceNotFoundException("project ", projectId+""));
     }
 }
