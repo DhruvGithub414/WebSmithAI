@@ -1,6 +1,10 @@
 package com.webagent.projects.websmith.service.impl;
 
+import com.webagent.projects.websmith.entity.ProjectMember;
+import com.webagent.projects.websmith.entity.ProjectMemberId;
+import com.webagent.projects.websmith.enums.ProjectRole;
 import com.webagent.projects.websmith.error.ResourceNotFoundException;
+import com.webagent.projects.websmith.repository.ProjectMemberRepository;
 import jakarta.transaction.Transactional;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -29,19 +33,30 @@ public class ProjectServiceImpl implements ProjectService {
     ProjectRepository projectRepository;
     UserRepository userRepository;
     ProjectMapper projectMapper;
-
+    ProjectMemberRepository projectMemberRepository;
     @Override
     public ProjectResponse createProject(ProjectRequest request, Long userId) {
 
-        User owner = userRepository.findById(userId).orElseThrow();
+        User owner = userRepository.findById(userId).orElseThrow(
+                () -> new ResourceNotFoundException("User", userId.toString())
+        );
 
         Project project = Project.builder()
                 .name(request.name())
-                .owner(owner)
                 .isPublic(false)
                 .build();
-
         project = projectRepository.save(project);
+
+        ProjectMemberId projectMemberId = new ProjectMemberId(project.getId(), owner.getId());
+        ProjectMember projectMember = ProjectMember.builder()
+                .projectRole(ProjectRole.OWNER)
+                .user(owner)
+                .acceptedAt(Instant.now())
+                .invitedAt(Instant.now())
+                .project(project)
+                .build();
+
+        projectMemberRepository.save(projectMember);
         return projectMapper.toProjectResponse(project);
     }
 
@@ -67,9 +82,7 @@ public class ProjectServiceImpl implements ProjectService {
     @Override
     public ProjectResponse updateProject(Long id, ProjectRequest request, Long userId) {
         Project project = getAccessibleProjectById(id,userId);
-        if(!project.getOwner().getId().equals(userId)){
-            throw new RuntimeException("You are not allowed to Update the name");
-        }
+
 
         project.setName(request.name());
         project = projectRepository.save(project);
@@ -79,15 +92,13 @@ public class ProjectServiceImpl implements ProjectService {
     @Override
     public void softDelete(Long id, Long userId) {
         Project project = getAccessibleProjectById(id,userId);
-        if(!project.getOwner().getId().equals(userId)){
-            throw new RuntimeException("You are not allowed to delete");
-        }
+
         project.setDeletedAt(Instant.now());
         projectRepository.save(project);
     }
 
     public Project getAccessibleProjectById(Long projectId, Long userId){
         return projectRepository.findAccessibleProjectById(projectId, userId)
-                .orElseThrow(()-> new ResourceNotFoundException("project ", projectId+""));
+                .orElseThrow(()-> new ResourceNotFoundException("project ", projectId.toString()));
     }
 }

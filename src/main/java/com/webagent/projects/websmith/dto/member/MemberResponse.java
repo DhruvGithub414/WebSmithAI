@@ -6,7 +6,7 @@ import com.webagent.projects.websmith.enums.ProjectRole;
 
 public record MemberResponse(
         Long userId,
-        String email,
+        String username,
         String name,
         ProjectRole projectRole,
         Instant invitedAt
