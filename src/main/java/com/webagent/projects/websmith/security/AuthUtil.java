@@ -49,10 +49,10 @@ public class AuthUtil {
     }
     public Long getCurrentUserId(){
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if(authentication == null || !(authentication.getPrincipal() instanceof JwtUserPrincipal)){
+        if(authentication == null || !(authentication.getPrincipal() instanceof JwtUserPrincipal userPrincipal)){
             throw new AuthenticationCredentialsNotFoundException("No Jwt token Found");
         }
-        JwtUserPrincipal userPrincipal = (JwtUserPrincipal)authentication.getPrincipal();
+//        JwtUserPrincipal userPrincipal = (JwtUserPrincipal)authentication.getPrincipal();
         return userPrincipal.userId();
     }
 }
