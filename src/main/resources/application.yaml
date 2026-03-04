@@ -11,7 +11,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
@@ -20,3 +20,12 @@ spring:
 
 jwt:
   secret-key: mySecretKeyForJWTTokenGeneration1234567890
+
+
+stripe:
+  api:
+    secret: ${STRIPE_SECRET_KEY}
+  webhook:
+    secret: ${STRIPE_WEBHOOK_SECRET}
+
+client.url: http://localhost:8080
