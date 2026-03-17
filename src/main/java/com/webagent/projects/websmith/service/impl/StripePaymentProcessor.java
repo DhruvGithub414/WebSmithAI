@@ -1,7 +1,7 @@
 package com.webagent.projects.websmith.service.impl;
 
 import com.stripe.exception.StripeException;
-import com.stripe.model.StripeObject;
+import com.stripe.model.*;
 import com.stripe.model.checkout.Session;
 import com.stripe.param.checkout.SessionCreateParams;
 import com.webagent.projects.websmith.dto.subscription.CheckoutRequest;
@@ -9,16 +9,19 @@ import com.webagent.projects.websmith.dto.subscription.CheckoutResponse;
 import com.webagent.projects.websmith.dto.subscription.PortalResponse;
 import com.webagent.projects.websmith.entity.Plan;
 import com.webagent.projects.websmith.entity.User;
+import com.webagent.projects.websmith.enums.SubscriptionStatus;
 import com.webagent.projects.websmith.error.ResourceNotFoundException;
 import com.webagent.projects.websmith.repository.PlanRepository;
 import com.webagent.projects.websmith.repository.UserRepository;
 import com.webagent.projects.websmith.security.AuthUtil;
 import com.webagent.projects.websmith.service.PaymentProcessor;
+import com.webagent.projects.websmith.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.Map;
 
 @Slf4j
@@ -30,6 +33,7 @@ public class StripePaymentProcessor implements PaymentProcessor {
     @Value("${client.url}")
     private String frontendUrl;
     private final UserRepository userRepository;
+    private final SubscriptionService subscriptionService;
     // connect to cli :
     // stripe listen --forward-to localhost:8080/webhooks/payment \ --events=checkout.session.completed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.paid,invoice.payment_failed
     @Override
@@ -76,12 +80,140 @@ public class StripePaymentProcessor implements PaymentProcessor {
     }
 
     @Override
-    public PortalResponse openCustomerPortal(Long userId) {
+    public PortalResponse openCustomerPortal() {
         return null;
     }
 
     @Override
     public void handleWebhookEvent(String type, StripeObject stripeObject, Map<String, String> metadata) {
-        log.info("Received webhook event: {}", type);
+        log.debug("Received webhook event: {}", type);
+
+        switch(type){
+            case "checkout.session.completed" -> handleCheckoutSessionCompleted((Session)stripeObject, metadata);
+            case "customer.subscription.updated" -> handleCustomerSubscriptionUpdated((Subscription) stripeObject);
+            case "customer.subscription.deleted" -> handleCustomerSubscriptionDeleted((Subscription) stripeObject);
+            case "invoice.paid" -> handleInvoicePaid((Invoice) stripeObject);
+            case "invoice.payment_failed" -> handleInvoicePaymentFailed((Invoice) stripeObject);
+            default -> log.debug("Ignoring the event: {}", type);
+        }
+    }
+
+    private void handleCheckoutSessionCompleted(Session session, Map<String,String> metadata){
+        if(session == null){
+            log.error("session object was null");
+            return;
+        }
+        Long userId = Long.parseLong(metadata.get("user_id"));
+        Long planId = Long.parseLong(metadata.get("plan_id"));
+        String subscriptionId = session.getSubscription();
+        String customerId = session.getCustomer();
+
+        User user = getUser(userId);
+        if(user.getStripeCustomerId() == null){
+            user.setStripeCustomerId(customerId);
+            userRepository.save(user);
+        }
+        subscriptionService.activateSubscription(userId, planId, subscriptionId, customerId);
+
+    }
+    private void handleCustomerSubscriptionUpdated(Subscription subscription){
+        if (subscription == null) {
+            log.error("subscription object was null inside handleCustomerSubscriptionUpdated");
+            return;
+        }
+
+        SubscriptionStatus status = mapStripeStatusToEnum(subscription.getStatus());
+        if (status == null) {
+            log.warn("Unknown status '{}' for subscription {}", subscription.getStatus(), subscription.getId());
+            return;
+        }
+
+        SubscriptionItem item = subscription.getItems().getData().get(0);
+        Instant periodStart = toInstant(item.getCurrentPeriodStart());
+        Instant periodEnd = toInstant(item.getCurrentPeriodEnd());
+
+        Long planId = resolvePlanId(item.getPrice());
+
+        subscriptionService.updateSubscription(
+                subscription.getId(), status, periodStart, periodEnd,
+                subscription.getCancelAtPeriodEnd(), planId
+        );
+
+    }
+    private void handleCustomerSubscriptionDeleted(Subscription subscription){
+        if (subscription == null) {
+            log.error("subscription object was null inside handleCustomerSubscriptionDeleted");
+            return;
+        }
+        subscriptionService.cancelSubscription(subscription.getId());
+    }
+    private void handleInvoicePaid(Invoice invoice){
+        String subId = extractSubscriptionId(invoice);
+
+        if(subId == null)return;
+        try {
+            Subscription subscription = Subscription.retrieve(subId);
+            var item = subscription.getItems().getData().get(0);
+
+            Instant periodStart = toInstant(item.getCurrentPeriodStart());
+            Instant periodEnd = toInstant(item.getCurrentPeriodEnd());
+            log.info("inside handle invoice paid");
+
+            subscriptionService.renewSubscriptionPeriod(
+                    subId,
+                    periodStart,
+                    periodEnd
+            );
+        } catch (StripeException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+    private void handleInvoicePaymentFailed(Invoice invoice){
+        String subId = extractSubscriptionId(invoice);
+        if(subId == null)return;
+
+        subscriptionService.markSubscriptionPastDue(subId);
+
+
+    }
+    private User getUser(Long userId){
+        return userRepository.findById(userId).orElseThrow(()->
+                new ResourceNotFoundException("user", userId.toString()));
+
+    }
+    private SubscriptionStatus mapStripeStatusToEnum(String status) {
+        return switch (status) {
+            case "active" -> SubscriptionStatus.ACTIVE;
+            case "trialing" -> SubscriptionStatus.TRIALING;
+            case "past_due", "unpaid", "paused", "incomplete_expired" -> SubscriptionStatus.PAST_DUE;
+            case "canceled" -> SubscriptionStatus.CANCELED;
+            case "incomplete" -> SubscriptionStatus.INCOMPLETE;
+            default -> {
+                log.warn("Unmapped Stripe status: {}", status);
+                yield null;
+            }
+        };
+    }
+
+    private Instant toInstant(Long epoch) {
+        return epoch != null ? Instant.ofEpochSecond(epoch) : null;
+    }
+
+    private Long resolvePlanId(Price price) {
+        if (price == null || price.getId() == null) return null;
+        return planRepository.findByStripePriceId(price.getId())
+                .map(Plan::getId)
+                .orElse(null);
+    }
+
+    private String extractSubscriptionId(Invoice invoice) {
+        var parent = invoice.getParent();
+        if (parent == null) return null;
+
+        var subDetails = parent.getSubscriptionDetails();
+        if (subDetails == null) return null;
+
+        return subDetails.getSubscription();
     }
 }

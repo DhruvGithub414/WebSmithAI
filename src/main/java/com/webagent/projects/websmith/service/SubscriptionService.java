@@ -1,12 +1,21 @@
 package com.webagent.projects.websmith.service;
 
-import com.webagent.projects.websmith.dto.subscription.CheckoutRequest;
-import com.webagent.projects.websmith.dto.subscription.CheckoutResponse;
-import com.webagent.projects.websmith.dto.subscription.PortalResponse;
 import com.webagent.projects.websmith.dto.subscription.SubscriptionResponse;
+import com.webagent.projects.websmith.enums.SubscriptionStatus;
+
+import java.time.Instant;
 
 public interface SubscriptionService {
-    SubscriptionResponse getCurrentSubscription(Long userId);
+    SubscriptionResponse getCurrentSubscription();
 
 
+    void activateSubscription(Long userId, Long planId, String subscriptionId, String customerId);
+
+    void updateSubscription(String gatewaySubscriptionId, SubscriptionStatus status, Instant periodStart, Instant periodEnd, Boolean cancelAtPeriodEnd, Long planId);
+
+    void cancelSubscription(String gatewaySubscriptionId);
+
+    void renewSubscriptionPeriod(String subId, Instant periodStart, Instant periodEnd);
+
+    void markSubscriptionPastDue(String subId);
 }

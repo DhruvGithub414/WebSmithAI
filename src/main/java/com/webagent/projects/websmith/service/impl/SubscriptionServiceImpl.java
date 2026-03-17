@@ -1,5 +1,19 @@
 package com.webagent.projects.websmith.service.impl;
 
+import com.webagent.projects.websmith.entity.Plan;
+import com.webagent.projects.websmith.entity.Subscription;
+import com.webagent.projects.websmith.entity.User;
+import com.webagent.projects.websmith.enums.SubscriptionStatus;
+import com.webagent.projects.websmith.error.ResourceNotFoundException;
+import com.webagent.projects.websmith.mapper.SubscriptionMapper;
+import com.webagent.projects.websmith.repository.PlanRepository;
+import com.webagent.projects.websmith.repository.SubscriptionRepository;
+import com.webagent.projects.websmith.repository.UserRepository;
+import com.webagent.projects.websmith.security.AuthUtil;
+import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
 
 import com.webagent.projects.websmith.dto.subscription.CheckoutRequest;
@@ -8,12 +22,137 @@ import com.webagent.projects.websmith.dto.subscription.PortalResponse;
 import com.webagent.projects.websmith.dto.subscription.SubscriptionResponse;
 import com.webagent.projects.websmith.service.SubscriptionService;
 
+import java.time.Instant;
+import java.util.Set;
+
 @Service
+@RequiredArgsConstructor
+@Slf4j
 public class SubscriptionServiceImpl implements SubscriptionService {
+
+    private final AuthUtil authUtil;
+    private final SubscriptionRepository subscriptionRepository;
+    private final SubscriptionMapper subscriptionMapper;
+    private final UserRepository userRepository;
+    private final PlanRepository planRepository;
     @Override
-    public SubscriptionResponse getCurrentSubscription(Long userId) {
-        return null;
+    public SubscriptionResponse getCurrentSubscription() {
+        Long userId = authUtil.getCurrentUserId();
+
+        var currentSubscription =  subscriptionRepository.findByUserIdAndStatusIn(userId, Set.of(
+                SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE,
+                SubscriptionStatus.TRIALING
+        )).orElse(
+                new Subscription()
+        );
+        return subscriptionMapper.toSubscriptionResponse(currentSubscription);
+
     }
 
+    @Override
+    public void activateSubscription(Long userId, Long planId, String subscriptionId, String customerId) {
+        boolean exists = subscriptionRepository.existsByStripeSubscriptionId(subscriptionId);
+        if(exists)return;
 
+        User user = getUser(userId);
+        Plan plan = getPlan(planId);
+
+        Subscription subscription = Subscription.builder()
+                .user(user)
+                .plan(plan)
+                .stripeSubscriptionId(subscriptionId)
+                .status(SubscriptionStatus.INCOMPLETE)
+                .build();
+
+        subscriptionRepository.save(subscription);
+
+    }
+
+    @Override
+    @Transactional
+    public void updateSubscription(String gatewaySubscriptionId, SubscriptionStatus status, Instant periodStart, Instant periodEnd, Boolean cancelAtPeriodEnd, Long planId) {
+        Subscription subscription = getSubscription(gatewaySubscriptionId);
+
+        Boolean hasSubscriptionUpdated =false;
+        if(status !=null && status!=subscription.getStatus()){
+            subscription.setStatus(status);
+            hasSubscriptionUpdated = true;
+        }
+        if(periodStart!=null && !periodStart.equals(subscription.getCurrentPeriodStart())){
+            subscription.setCurrentPeriodStart(periodStart);
+            hasSubscriptionUpdated = true;
+        }
+        if(periodEnd!=null && !periodEnd.equals(subscription.getCurrentPeriodEnd())){
+            subscription.setCurrentPeriodEnd(periodEnd);
+            hasSubscriptionUpdated = true;
+        }
+        if(cancelAtPeriodEnd!=null && cancelAtPeriodEnd!=subscription.getCancelAtPeriodEnd()){
+            subscription.setCancelAtPeriodEnd(cancelAtPeriodEnd);
+            hasSubscriptionUpdated = true;
+        }
+        if(planId!=null && !planId.equals(subscription.getPlan().getId())){
+            Plan newPlan= getPlan(planId);
+            subscription.setPlan(newPlan);
+            hasSubscriptionUpdated = true;
+        }
+
+        if(hasSubscriptionUpdated){
+            log.debug("Subscription has been updated: {}", gatewaySubscriptionId);
+            subscriptionRepository.save(subscription);
+        }
+
+
+    }
+
+    @Override
+    public void cancelSubscription(String gatewaySubscriptionId) {
+        Subscription subscription = getSubscription(gatewaySubscriptionId);
+        subscription.setStatus(SubscriptionStatus.CANCELED);
+        subscriptionRepository.save(subscription);
+
+    }
+
+    @Override
+    public void renewSubscriptionPeriod(String gatewaySubscriptionId, Instant periodStart, Instant periodEnd) {
+        Subscription subscription = getSubscription(gatewaySubscriptionId);
+        Instant newStart = periodStart!=null ? periodStart : subscription.getCurrentPeriodEnd();
+        subscription.setCurrentPeriodStart(newStart);
+        subscription.setCurrentPeriodEnd(periodEnd);
+        if(subscription.getStatus()== SubscriptionStatus.PAST_DUE ||subscription.getStatus()== SubscriptionStatus.INCOMPLETE){
+            subscription.setStatus(SubscriptionStatus.ACTIVE);
+        }
+        subscriptionRepository.save(subscription);
+
+    }
+
+    @Override
+    public void markSubscriptionPastDue(String gatewaySubscriptionId) {
+        Subscription subscription = getSubscription(gatewaySubscriptionId);
+        if(subscription.getStatus()==SubscriptionStatus.PAST_DUE){
+            log.debug("Subscription is already past due, gateSubscriptionId : {}", gatewaySubscriptionId);
+            return;
+        }
+        subscription.setStatus(SubscriptionStatus.PAST_DUE);
+        subscriptionRepository.save(subscription);
+
+        // Notify user via Email
+
+    }
+
+    private User getUser(Long userId){
+        return userRepository.findById(userId).orElseThrow(()->
+                new ResourceNotFoundException("User", userId.toString()));
+
+    }
+
+    private Plan getPlan(Long planId){
+        return planRepository.findById(planId).orElseThrow(()->
+                new ResourceNotFoundException("Plan", planId.toString()));
+
+    }
+    private Subscription getSubscription(String gatewaySubscriptionId) {
+        return subscriptionRepository.findByStripeSubscriptionId(gatewaySubscriptionId).
+                orElseThrow(() -> new ResourceNotFoundException("Subscription", gatewaySubscriptionId));
+    }
+    
 }
