@@ -139,6 +139,18 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     }
 
+    @Override
+    public boolean canCreateNewProject() {
+        SubscriptionResponse currentSubscription = getCurrentSubscription();
+        if(currentSubscription.plan()==null){
+            return false;
+        }
+
+
+
+        return false;
+    }
+
     private User getUser(Long userId){
         return userRepository.findById(userId).orElseThrow(()->
                 new ResourceNotFoundException("User", userId.toString()));

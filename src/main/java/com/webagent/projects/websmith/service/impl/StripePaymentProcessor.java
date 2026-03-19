@@ -10,6 +10,7 @@ import com.webagent.projects.websmith.dto.subscription.PortalResponse;
 import com.webagent.projects.websmith.entity.Plan;
 import com.webagent.projects.websmith.entity.User;
 import com.webagent.projects.websmith.enums.SubscriptionStatus;
+import com.webagent.projects.websmith.error.BadRequestException;
 import com.webagent.projects.websmith.error.ResourceNotFoundException;
 import com.webagent.projects.websmith.repository.PlanRepository;
 import com.webagent.projects.websmith.repository.UserRepository;
@@ -81,7 +82,26 @@ public class StripePaymentProcessor implements PaymentProcessor {
 
     @Override
     public PortalResponse openCustomerPortal() {
-        return null;
+        Long userId = authUtil.getCurrentUserId();
+        User user = getUser(userId);
+        String stripeCustomerId = user.getStripeCustomerId();
+        if(stripeCustomerId==null || stripeCustomerId.isEmpty()){
+            throw new BadRequestException("User does not have a Stripe Customer Id, UserId "+userId);
+        }
+        try {
+            var portalSession = com.stripe.model.billingportal.Session.create(
+                    com.stripe.param.billingportal.SessionCreateParams.builder()
+                            .setCustomer(stripeCustomerId)
+                            .setReturnUrl(frontendUrl)
+                            .build()
+            );
+
+            return new PortalResponse(portalSession.getUrl());
+        } catch (StripeException e) {
+            throw new RuntimeException(e);
+        }
+
+
     }
 
     @Override

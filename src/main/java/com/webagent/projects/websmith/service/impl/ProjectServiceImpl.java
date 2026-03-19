@@ -3,9 +3,11 @@ package com.webagent.projects.websmith.service.impl;
 import com.webagent.projects.websmith.entity.ProjectMember;
 import com.webagent.projects.websmith.entity.ProjectMemberId;
 import com.webagent.projects.websmith.enums.ProjectRole;
+import com.webagent.projects.websmith.error.BadRequestException;
 import com.webagent.projects.websmith.error.ResourceNotFoundException;
 import com.webagent.projects.websmith.repository.ProjectMemberRepository;
 import com.webagent.projects.websmith.security.AuthUtil;
+import com.webagent.projects.websmith.service.SubscriptionService;
 import jakarta.transaction.Transactional;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -37,8 +39,14 @@ public class ProjectServiceImpl implements ProjectService {
     ProjectMapper projectMapper;
     ProjectMemberRepository projectMemberRepository;
     AuthUtil authUtil;
+    SubscriptionService subscriptionService;
+
     @Override
     public ProjectResponse createProject(ProjectRequest request) {
+
+        if(!subscriptionService.canCreateNewProject()){
+            throw new BadRequestException("User Cannot Create a New project with current Plan, Upgrade the Plan");
+        }
         Long userId = authUtil.getCurrentUserId();
 //        User owner = userRepository.findById(userId).orElseThrow(
 //                () -> new ResourceNotFoundException("User", userId.toString())
