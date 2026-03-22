@@ -4,7 +4,7 @@ spring:
     description: this is application
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/webagent
+    url: jdbc:postgresql://localhost:9010/pgvector-test
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
@@ -18,6 +18,18 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
+  ai:
+    openai:
+      api-key: ${OPEN_ROUTER_KEY}
+      base-url: https://openrouter.ai/api
+      chat:
+        options:
+          #          model: x-ai/grok-code-fast-1
+          model: google/gemini-3-flash-preview
+          temperature: 0.0
+
+    deepseek:
+
 jwt:
   secret-key: mySecretKeyForJWTTokenGeneration1234567890
 
@@ -29,3 +41,14 @@ stripe:
     secret: ${STRIPE_WEBHOOK_SECRET}
 
 client.url: http://localhost:8080
+
+logging:
+  level:
+    org.springframework.ai:
+      chat.client: DEBUG
+
+minio:
+  url: http://localhost:9000
+  access-key: ${MINIO_ACCESS_KEY}
+  secret-key: ${MINIO_SECRET_KEY}
+  project-bucket: projects

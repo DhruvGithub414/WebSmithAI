@@ -1,6 +1,5 @@
 package com.webagent.projects.websmith.security;
 
-import com.webagent.projects.websmith.service.FileService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

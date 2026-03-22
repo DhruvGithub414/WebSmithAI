@@ -3,10 +3,12 @@ package com.webagent.projects.websmith.security;
 import com.webagent.projects.websmith.enums.ProjectPermission;
 import com.webagent.projects.websmith.repository.ProjectMemberRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 @Component("security")
 @RequiredArgsConstructor
+@Slf4j
 public class SecurityExpressions {
 
     private final ProjectMemberRepository projectMemberRepository;
@@ -14,9 +16,15 @@ public class SecurityExpressions {
 
     private boolean hasPermission(Long projectId, ProjectPermission projectPermission){
         Long userId = authUtil.getCurrentUserId();
-        return projectMemberRepository.findRoleByProjectIdAndUserId(projectId, userId).
-                map(role ->role.getPermissions().contains(projectPermission))
+        boolean granted = projectMemberRepository.findRoleByProjectIdAndUserId(projectId, userId)
+                .map(role -> role.getPermissions().contains(projectPermission))
                 .orElse(false);
+
+        if (!granted) {
+            log.warn("Permission denied for userId={}, projectId={}, permission={}", userId, projectId, projectPermission);
+        }
+
+        return granted;
     }
 
     public boolean canViewProject(Long projectId){

@@ -7,6 +7,7 @@ import com.webagent.projects.websmith.enums.SubscriptionStatus;
 import com.webagent.projects.websmith.error.ResourceNotFoundException;
 import com.webagent.projects.websmith.mapper.SubscriptionMapper;
 import com.webagent.projects.websmith.repository.PlanRepository;
+import com.webagent.projects.websmith.repository.ProjectMemberRepository;
 import com.webagent.projects.websmith.repository.SubscriptionRepository;
 import com.webagent.projects.websmith.repository.UserRepository;
 import com.webagent.projects.websmith.security.AuthUtil;
@@ -35,6 +36,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final SubscriptionMapper subscriptionMapper;
     private final UserRepository userRepository;
     private final PlanRepository planRepository;
+    private final ProjectMemberRepository projectMemberRepository;
+    private final Integer FREE_TIER_PROJECTS_ALLOWED = 100;
+
     @Override
     public SubscriptionResponse getCurrentSubscription() {
         Long userId = authUtil.getCurrentUserId();
@@ -139,16 +143,18 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     }
 
+
     @Override
     public boolean canCreateNewProject() {
+        Long userId = authUtil.getCurrentUserId();
         SubscriptionResponse currentSubscription = getCurrentSubscription();
+        int countOfOwnedProjects = projectMemberRepository.countProjectOwnedByUser(userId);
+
         if(currentSubscription.plan()==null){
-            return false;
+            return countOfOwnedProjects < FREE_TIER_PROJECTS_ALLOWED;
         }
 
-
-
-        return false;
+        return countOfOwnedProjects<currentSubscription.plan().maxProjects();
     }
 
     private User getUser(Long userId){

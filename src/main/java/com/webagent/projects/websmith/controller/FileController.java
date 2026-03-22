@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.webagent.projects.websmith.dto.project.FileContentResponse;
 import com.webagent.projects.websmith.dto.project.FileNode;
-import com.webagent.projects.websmith.service.FileService;
+import com.webagent.projects.websmith.service.ProjectFileService;
 
 import java.util.List;
 
@@ -18,7 +18,7 @@ import java.util.List;
 @RequestMapping("/api/projects/{projectId}/files")
 public class FileController {
 
-    private final FileService fileService;
+    private final ProjectFileService fileService;
 
     @GetMapping
     public ResponseEntity<List<FileNode>> getFileTree(@PathVariable Long projectId) {
