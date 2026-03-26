@@ -5,6 +5,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 import java.time.Instant;
+import java.util.List;
 
 import com.webagent.projects.websmith.enums.MessageRole;
 import org.hibernate.annotations.CreationTimestamp;
@@ -36,6 +37,10 @@ public class ChatMessage {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     MessageRole role;
+
+    @OneToMany(mappedBy = "chatMessage", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OrderBy("sequenceOrder ASC")
+    List<ChatEvent> events;
 
 //    String toolCalls; // JSON Array of Tools Called
 

@@ -38,14 +38,14 @@ public class ProjectFileServiceImpl implements ProjectFileService {
     @Value("${minio.project-bucket}")
     private String projectBucket;
 
-    private static final String BUCKET_NAME = "projects";
+//    private static final String BUCKET_NAME = "projects";
 
 
     @Override
-    public FileTreeResponse getFileTree(Long projectId) {
+    public List<FileNode> getFileTree(Long projectId) {
         List<ProjectFile> projectFileList = projectFileRepository.findByProjectId(projectId);
         List<FileNode> projectFileNodes = projectFileMapper.toListOfFileNode(projectFileList);
-        return new FileTreeResponse(projectFileNodes);
+        return projectFileNodes;
     }
 
     @Override
@@ -54,7 +54,7 @@ public class ProjectFileServiceImpl implements ProjectFileService {
         try (
                 InputStream is = minioClient.getObject(
                         GetObjectArgs.builder()
-                                .bucket(BUCKET_NAME)
+                                .bucket(projectBucket)
                                 .object(objectName)
                                 .build())) {
 

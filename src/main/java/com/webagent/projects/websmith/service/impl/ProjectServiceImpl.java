@@ -7,6 +7,7 @@ import com.webagent.projects.websmith.error.BadRequestException;
 import com.webagent.projects.websmith.error.ResourceNotFoundException;
 import com.webagent.projects.websmith.repository.ProjectMemberRepository;
 import com.webagent.projects.websmith.security.AuthUtil;
+import com.webagent.projects.websmith.service.ProjectTemplateService;
 import com.webagent.projects.websmith.service.SubscriptionService;
 import jakarta.transaction.Transactional;
 import lombok.AccessLevel;
@@ -40,6 +41,7 @@ public class ProjectServiceImpl implements ProjectService {
     ProjectMemberRepository projectMemberRepository;
     AuthUtil authUtil;
     SubscriptionService subscriptionService;
+    ProjectTemplateService projectTemplateService;
 
     @Override
     public ProjectResponse createProject(ProjectRequest request) {
@@ -69,6 +71,9 @@ public class ProjectServiceImpl implements ProjectService {
                 .build();
 
         projectMemberRepository.save(projectMember);
+
+        projectTemplateService.initializeProjectFromTemplate(project.getId());
+
         return projectMapper.toProjectResponse(project);
     }
 

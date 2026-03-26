@@ -1,6 +1,8 @@
 package com.webagent.projects.websmith.service.impl;
 
 import com.webagent.projects.websmith.llm.PromptUtils;
+import com.webagent.projects.websmith.llm.advisors.FileTreeContextAdvisor;
+import com.webagent.projects.websmith.llm.tools.CodeGenerationTools;
 import com.webagent.projects.websmith.security.AuthUtil;
 import com.webagent.projects.websmith.service.AiGenerationService;
 import com.webagent.projects.websmith.service.ProjectFileService;
@@ -26,7 +28,7 @@ public class AiGenerationServiceImpl implements AiGenerationService {
     private final AuthUtil authUtil;
     private final ProjectFileService projectFileService;
     private static final Pattern FILE_TAG_PATTERN = Pattern.compile("<file path=\"([^\"]+)\">(.*?)</file>", Pattern.DOTALL);
-
+    private final FileTreeContextAdvisor fileTreeContextAdvisor;
 
     @Override
     @PreAuthorize(("@security.canEditProject(#projectId)"))
@@ -40,13 +42,15 @@ public class AiGenerationServiceImpl implements AiGenerationService {
         );
 
         StringBuilder fullResponseBuffer = new StringBuilder();
-
+        CodeGenerationTools codeGenerationTools = new CodeGenerationTools(projectFileService, projectId);
         return chatClient.prompt().
                 system(PromptUtils.CODE_GENERATION_SYSTEM_PROMPT).
                 user(userMessage).
+                tools(codeGenerationTools).
                 advisors(
                         advisorSpec -> {
                             advisorSpec.params(advisorParams);
+                            advisorSpec.advisors(fileTreeContextAdvisor);
                         }
                 )
                 .stream()
