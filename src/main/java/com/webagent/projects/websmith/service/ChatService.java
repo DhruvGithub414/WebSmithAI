@@ -1,12 +1,11 @@
 package com.webagent.projects.websmith.service;
 
-import com.webagent.projects.websmith.entity.ChatMessage;
-import org.springframework.ai.chat.model.ChatResponse;
+import com.webagent.projects.websmith.dto.chat.ChatResponse;
 
 import java.util.List;
 
 public interface ChatService {
 
-    List<ChatMessage> getProjectChatHistory(Long projectId);
+    List<ChatResponse> getProjectChatHistory(Long projectId);
 
 }
