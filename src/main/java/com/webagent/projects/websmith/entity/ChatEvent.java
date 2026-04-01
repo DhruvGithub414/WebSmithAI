@@ -36,5 +36,8 @@ public class ChatEvent {
 
     String filePath;
 
+    @Column(columnDefinition = "text")
+    String metadata;
+
 
 }

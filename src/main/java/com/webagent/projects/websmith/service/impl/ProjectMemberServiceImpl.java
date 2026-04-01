@@ -36,8 +36,8 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
     @Override
     @PreAuthorize("@security.canViewMembers(#projectId)")
     public List<MemberResponse> getProjectMembers(Long projectId) {
-        Long userId = authUtil.getCurrentUserId();
-        Project project = getAccessibleProjectById(projectId,userId);
+//        Long userId = authUtil.getCurrentUserId();
+//        Project project = getAccessibleProjectById(projectId,userId);
         List<MemberResponse> memberResponseList = projectMemberRepository.findByIdProjectId(projectId)
                 .stream()
                 .map(projectMemberMapper::toProjectMemberResponseFromMember)

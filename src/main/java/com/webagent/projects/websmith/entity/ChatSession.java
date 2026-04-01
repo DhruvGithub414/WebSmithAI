@@ -1,9 +1,7 @@
 package com.webagent.projects.websmith.entity;
 
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -14,6 +12,10 @@ import java.time.Instant;
 @Setter
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
+@Builder
+@Table(name = "chat_sessions")
+@AllArgsConstructor
+@NoArgsConstructor
 public class ChatSession {
 
     @EmbeddedId

@@ -1,11 +1,9 @@
 package com.webagent.projects.websmith.controller;
 
+import com.webagent.projects.websmith.dto.project.FileTreeResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.webagent.projects.websmith.dto.project.FileContentResponse;
 import com.webagent.projects.websmith.dto.project.FileNode;
@@ -21,17 +19,17 @@ public class FileController {
     private final ProjectFileService fileService;
 
     @GetMapping
-    public ResponseEntity<List<FileNode>> getFileTree(@PathVariable Long projectId) {
+    public ResponseEntity<FileTreeResponse> getFileTree(@PathVariable Long projectId) {
         Long userId = 1L;
         return ResponseEntity.ok(fileService.getFileTree(projectId));
     }
 
-    @GetMapping("/{*path}") // /src/hooks/get-user-hook.jsx
+    @GetMapping("/content") // /src/hooks/get-user-hook.jsx
     public ResponseEntity<FileContentResponse> getFile(
             @PathVariable Long projectId,
-            @PathVariable String path
+            @RequestParam String path
     ) {
-        Long userId = 1L;
+//        Long userId = 1L;
         return ResponseEntity.ok(fileService.getFileContent(projectId, path));
     }
 

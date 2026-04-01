@@ -1,5 +1,6 @@
 package com.webagent.projects.websmith.mapper;
 
+import com.webagent.projects.websmith.enums.ProjectRole;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -14,8 +15,8 @@ public interface ProjectMapper {
 
     ProjectResponse toProjectResponse(Project project);
 
-    @Mapping(target = "projectName", source = "name")
-    ProjectSummaryResponse toProjectSummaryResponse(Project project);
+//    @Mapping(target = "projectName", source = "name")
+    ProjectSummaryResponse toProjectSummaryResponse(Project project, ProjectRole role);
 
     List<ProjectSummaryResponse> toListOfProjectSummaryResponse(List<Project> projects);
 

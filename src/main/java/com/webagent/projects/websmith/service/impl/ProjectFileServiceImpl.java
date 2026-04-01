@@ -3,6 +3,7 @@ package com.webagent.projects.websmith.service.impl;
 
 import com.webagent.projects.websmith.dto.project.FileContentResponse;
 import com.webagent.projects.websmith.dto.project.FileNode;
+import com.webagent.projects.websmith.dto.project.FileTreeResponse;
 import com.webagent.projects.websmith.entity.Project;
 import com.webagent.projects.websmith.entity.ProjectFile;
 import com.webagent.projects.websmith.error.ResourceNotFoundException;
@@ -42,10 +43,10 @@ public class ProjectFileServiceImpl implements ProjectFileService {
 
 
     @Override
-    public List<FileNode> getFileTree(Long projectId) {
+    public FileTreeResponse getFileTree(Long projectId) {
         List<ProjectFile> projectFileList = projectFileRepository.findByProjectId(projectId);
         List<FileNode> projectFileNodes = projectFileMapper.toListOfFileNode(projectFileList);
-        return projectFileNodes;
+        return new FileTreeResponse(projectFileNodes);
     }
 
     @Override

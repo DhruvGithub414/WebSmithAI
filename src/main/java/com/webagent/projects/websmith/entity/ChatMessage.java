@@ -31,7 +31,7 @@ public class ChatMessage {
     })
     ChatSession chatSession;
 
-    @Column(columnDefinition = "text", nullable = false)
+    @Column(columnDefinition = "text")
     String content;
 
     @Enumerated(EnumType.STRING)

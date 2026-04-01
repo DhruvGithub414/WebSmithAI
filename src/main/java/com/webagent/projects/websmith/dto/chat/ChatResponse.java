@@ -12,13 +12,12 @@ import java.util.List;
 public record ChatResponse(
         Long id,
 
-        ChatSession chatSession,
 
         String content,
 
         MessageRole role,
 
-        List<ChatEvent>events,
+        List<ChatEventResponse>events,
 
 //    String toolCalls; // JSON Array of Tools Called
 

@@ -1,8 +1,14 @@
 package com.webagent.projects.websmith.service.impl;
 
+import com.webagent.projects.websmith.entity.*;
+import com.webagent.projects.websmith.enums.ChatEventType;
+import com.webagent.projects.websmith.enums.MessageRole;
+import com.webagent.projects.websmith.error.ResourceNotFoundException;
+import com.webagent.projects.websmith.llm.LlmResponseParser;
 import com.webagent.projects.websmith.llm.PromptUtils;
 import com.webagent.projects.websmith.llm.advisors.FileTreeContextAdvisor;
 import com.webagent.projects.websmith.llm.tools.CodeGenerationTools;
+import com.webagent.projects.websmith.repository.*;
 import com.webagent.projects.websmith.security.AuthUtil;
 import com.webagent.projects.websmith.service.AiGenerationService;
 import com.webagent.projects.websmith.service.ProjectFileService;
@@ -14,8 +20,10 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -29,12 +37,18 @@ public class AiGenerationServiceImpl implements AiGenerationService {
     private final ProjectFileService projectFileService;
     private static final Pattern FILE_TAG_PATTERN = Pattern.compile("<file path=\"([^\"]+)\">(.*?)</file>", Pattern.DOTALL);
     private final FileTreeContextAdvisor fileTreeContextAdvisor;
+    private final LlmResponseParser llmResponseParser;
+    private final ChatSessionRepository chatSessionRepository;
+    private final ProjectRepository projectRepository;
+    private final UserRepository userRepository;
+    private final ChatMessageRepository chatMessageRepository;
+    private final ChatEventRepository chatEventRepository;
 
     @Override
     @PreAuthorize(("@security.canEditProject(#projectId)"))
     public Flux<String> streamResponse(String userMessage, Long projectId) {
         long userId = authUtil.getCurrentUserId();
-        createChatSessionIfNotExists(projectId, userId);
+        ChatSession chatSession = createChatSessionIfNotExists(projectId, userId);
 
         Map<String, Object> advisorParams = Map.of(
                 "userId", userId,
@@ -43,6 +57,9 @@ public class AiGenerationServiceImpl implements AiGenerationService {
 
         StringBuilder fullResponseBuffer = new StringBuilder();
         CodeGenerationTools codeGenerationTools = new CodeGenerationTools(projectFileService, projectId);
+
+        AtomicReference<Long> startTime = new AtomicReference<>(System.currentTimeMillis());
+        AtomicReference<Long> endTime = new AtomicReference<>(0L);
         return chatClient.prompt().
                 system(PromptUtils.CODE_GENERATION_SYSTEM_PROMPT).
                 user(userMessage).
@@ -56,16 +73,56 @@ public class AiGenerationServiceImpl implements AiGenerationService {
                 .stream()
                 .chatResponse()
                 .doOnNext(response ->{
+
                     String content = response.getResult().getOutput().getText();
+                    if(content!=null && !content.isEmpty() &&endTime.get()==0){
+                        endTime.set(System.currentTimeMillis());
+                    }
                     fullResponseBuffer.append(content);
                 })
                 .doOnComplete(()->{
                     Schedulers.boundedElastic().schedule(()->{
-                    parseAndSaveFiles(fullResponseBuffer.toString(), projectId);
+//                    parseAndSaveFiles(fullResponseBuffer.toString(), projectId);
+                        long duration = (endTime.get()-startTime.get())/1000;
+                    finalizeChats(userMessage, chatSession, fullResponseBuffer.toString(), duration);
                     });
                 })
                 .doOnError(error -> log.error("Error during Streaming for projectId "+projectId))
                 .map(response -> Objects.requireNonNull(response.getResult().getOutput().getText()));
+
+    }
+
+    private void finalizeChats(String userMessage, ChatSession chatSession, String fullText, Long duration){
+        Long projectId = chatSession.getProject().getId();
+        chatMessageRepository.save(
+                ChatMessage.builder()
+                        .chatSession(chatSession)
+                        .role(MessageRole.USER)
+                        .content(userMessage)
+                        .build()
+        );
+
+        ChatMessage assistantChatMessage = ChatMessage.builder()
+                .role(MessageRole.ASSISTANT)
+                .content("Assistant message here...")
+                .chatSession(chatSession)
+                .build();
+
+        assistantChatMessage  =chatMessageRepository.save(assistantChatMessage);
+
+        List<ChatEvent> chatEventList = llmResponseParser.parseChatEvents(fullText, assistantChatMessage);
+
+        chatEventList.addFirst(ChatEvent.builder()
+                        .type(ChatEventType.THOUGHT)
+                        .chatMessage(assistantChatMessage)
+                        .content("Thought for "+duration+"s")
+                        .sequenceOrder(0)
+                .build());
+        chatEventList.stream()
+                .filter(e->e.getType() == ChatEventType.FILE_EDIT)
+                .forEach(e -> projectFileService.saveFile(projectId, e.getFilePath(),e.getContent()));
+
+        chatEventRepository.saveAll(chatEventList);
 
     }
 
@@ -83,9 +140,28 @@ public class AiGenerationServiceImpl implements AiGenerationService {
 
     }
 
-    private void createChatSessionIfNotExists(Long projectId, Long userId) {
+    private ChatSession createChatSessionIfNotExists(Long projectId, Long userId) {
+        ChatSessionId chatSessionId = new ChatSessionId(projectId, userId);
+        ChatSession chatSession = chatSessionRepository.findById(chatSessionId)
+                .orElse(null);
 
+        if(chatSession ==null ){
+            Project project = projectRepository.findById(projectId)
+            .orElseThrow(()-> new ResourceNotFoundException("Project", projectId.toString()));
 
+            User user = userRepository.findById(userId)
+                    .orElseThrow(()-> new ResourceNotFoundException("User", projectId.toString()));
+
+            chatSession = ChatSession.builder()
+                    .id(chatSessionId)
+                    .project(project)
+                    .user(user)
+                    .build();
+
+            chatSession = chatSessionRepository.save(chatSession);
+
+        }
+        return chatSession;
 
     }
 }
