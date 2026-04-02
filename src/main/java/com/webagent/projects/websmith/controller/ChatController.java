@@ -2,6 +2,7 @@ package com.webagent.projects.websmith.controller;
 
 import com.webagent.projects.websmith.dto.chat.ChatRequest;
 import com.webagent.projects.websmith.dto.chat.ChatResponse;
+import com.webagent.projects.websmith.dto.chat.StreamResponse;
 import com.webagent.projects.websmith.service.AiGenerationService;
 import com.webagent.projects.websmith.service.ChatService;
 import lombok.RequiredArgsConstructor;
@@ -23,11 +24,11 @@ public class ChatController {
     private final ChatService chatService;
 
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<String>> streamChat(
+    public Flux<ServerSentEvent<StreamResponse>> streamChat(
             @RequestBody ChatRequest request
     ){
         return aiGenerationService.streamResponse(request.message(), request.projectId())
-                .map(data -> ServerSentEvent.<String>builder()
+                .map(data -> ServerSentEvent.<StreamResponse>builder()
                         .data(data)
                         .build());
     }
