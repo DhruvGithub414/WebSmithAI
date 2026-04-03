@@ -1,6 +1,8 @@
 package com.webagent.projects.websmith.controller;
 
+import com.webagent.projects.websmith.dto.deploy.DeployResponse;
 import com.webagent.projects.websmith.security.AuthUtil;
+import com.webagent.projects.websmith.service.DeploymentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -20,6 +22,7 @@ import java.util.List;
 public class ProjectController {
 
     private final ProjectService projectService;
+    private final DeploymentService deploymentService;
 
     @GetMapping
     public ResponseEntity<List<ProjectSummaryResponse>> getMyProjects() {
@@ -50,6 +53,11 @@ public class ProjectController {
         Long userId = 1L;
         projectService.softDelete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("{id}/deploy")
+    public ResponseEntity<DeployResponse> deployProject(@PathVariable Long id){
+        return ResponseEntity.ok(deploymentService.deploy(id));
     }
 
 }
